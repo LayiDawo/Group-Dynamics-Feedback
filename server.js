@@ -7,17 +7,16 @@ const cors = require("cors");
 const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev });
 const handle = app.getRequestHandler();
-
 const port = process.env.PORT || 3000;
 
 app.prepare().then(() => {
   const server = express();
   const httpServer = http.createServer(server);
 
-  // Enable CORS for all origins and methods
+  // Enable CORS
   server.use(cors());
 
-  // Setup Socket.IO with CORS config
+  // Setup Socket.IO
   const io = new Server(httpServer, {
     cors: {
       origin: "*",
@@ -27,17 +26,18 @@ app.prepare().then(() => {
 
   io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
-    // You can add socket event handlers here
+
+    socket.on("game_message", (msg) => {
+      socket.broadcast.emit("game_message", msg);
+    });
   });
 
-  // Catch all route handler for Next.js
-  server.use((req, res) => {
+  // ✅ This is the correct catch-all for modern Express + Next.js
+  server.all("/*", (req, res) => {
     return handle(req, res);
   });
 
   httpServer.listen(port, () => {
-    console.log(`> Ready on http://localhost:${port}`);
+    console.log(`✅ Ready on http://localhost:${port}`);
   });
-}).catch((err) => {
-  console.error("Error starting server:", err);
 });

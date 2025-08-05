@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +14,9 @@ import SentenceCreator from "@/components/sentence-creator"
 import VotingInterface from "@/components/voting-interface"
 import GameResults from "@/components/game-results"
 import { useGameSync } from "@/hooks/use-game-sync"
+import { getGameWebSocket, type GameMessage } from "@/lib/websocket"
+
+
 
 interface Player {
   id: string
@@ -69,6 +72,7 @@ export default function GamePage() {
 
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+  const [messages, setMessages] = useState<any[]>([]);
 
   const {
     broadcastPlayerJoined,
@@ -79,6 +83,20 @@ export default function GamePage() {
     broadcastVoteCast,
     broadcastPhaseChange
   } = useGameSync(gameState, setGameState, currentPlayer)
+
+  const ws = getGameWebSocket();
+
+  useEffect(() => {
+  const unsubscribe = ws.onMessage((msg) => {
+    setMessages((prev) => [...prev, msg]);
+  });
+
+  return () => {
+    unsubscribe?.();               // unsubscribe from messages
+    ws.disconnect();                // disconnect from socket
+  };
+}, [ws]);
+
 
   const handleRegistration = () => {
     if (!formData.name || !formData.team || !formData.role) return
@@ -107,6 +125,21 @@ export default function GamePage() {
     setGameState((prev) => ({ ...prev, phase: "spinning", currentQuestion: question }))
     broadcastGameStarted(question)
   }
+
+  const handleSendMessage = () => {
+    ws.sendMessage({
+      type: "player_joined",
+      payload: {
+        player: {
+          id: "user123",
+          name: "Alice",
+          team: "Red",
+          role: "Leader",
+        },
+        senderId: "user123",
+      },
+    });
+  };
 
   const ConnectionStatus = () => (
     <div className="fixed top-4 right-4 z-50">
