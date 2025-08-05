@@ -16,17 +16,27 @@ app.prepare().then(() => {
 
   const io = new Server(httpServer, {
     cors: {
-      origin: "*",
+      origin: "https://group-dynamics-feedback.onrender.com",
+      methods: ["GET", "POST"],
+      credentials: true,
     },
   });
 
   io.on("connection", (socket) => {
     console.log("New client connected");
+    // Your socket.io event handling here
   });
 
-  server.use(cors());
+  // Enable CORS middleware for Express routes as well
+  server.use(
+    cors({
+      origin: "https://group-dynamics-feedback.onrender.com",
+      methods: ["GET", "POST"],
+      credentials: true,
+    })
+  );
 
-  // ✅ FIX: Use wildcard route that Express 5+ allows
+  // Let Next.js handle all frontend routes with a wildcard route
   server.all("/*", (req, res) => {
     return handle(req, res);
   });
