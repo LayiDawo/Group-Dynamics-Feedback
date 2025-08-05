@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "NODE_ENV=production node server.js"
+    "start": "cross-env NODE_ENV=production node server.js"
+
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -47,7 +48,7 @@
     "geist": "latest",
     "input-otp": "latest",
     "lucide-react": "^0.454.0",
-    "next": "13.x",
+    "next": "^15.4.5",
     "next-themes": "latest",
     "react": "^18.x",
     "react-day-picker": "latest",
