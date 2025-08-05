@@ -1,32 +1,39 @@
-// server.js
-const express = require("express")
-const http = require("http")
-const cors = require("cors")
-const { Server } = require("socket.io")
+const express = require("express");
+const next = require("next");
+const http = require("http");
+const { Server } = require("socket.io");
+const cors = require("cors");
 
-const app = express()
-const server = http.createServer(app)
+const dev = process.env.NODE_ENV !== "production";
+const app = next({ dev });
+const handle = app.getRequestHandler();
 
-const io = new Server(server, {
-  cors: {
-    origin: "*", // Change to your frontend URL in production
-    methods: ["GET", "POST"],
-  },
-})
+const port = process.env.PORT || 3000;
 
-io.on("connection", (socket) => {
-  console.log("Client connected:", socket.id)
+app.prepare().then(() => {
+  const server = express();
+  const httpServer = http.createServer(server);
 
-  socket.on("message", (data) => {
-    socket.broadcast.emit("message", data)
-  })
+  const io = new Server(httpServer, {
+    cors: {
+      origin: "*",
+    },
+  });
 
-  socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id)
-  })
-})
+  // Your socket.io logic
+  io.on("connection", (socket) => {
+    console.log("New client connected");
+    // Handle custom events
+  });
 
-const PORT = process.env.PORT || 3001
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
-})
+  server.use(cors());
+
+  // Let Next.js handle all frontend routes
+  server.all("*", (req, res) => {
+    return handle(req, res);
+  });
+
+  httpServer.listen(port, () => {
+    console.log(`> Ready on http://localhost:${port}`);
+  });
+});
