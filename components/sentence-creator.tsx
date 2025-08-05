@@ -1,14 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Trash2, Send } from 'lucide-react'
 
+interface Player {
+  id: string
+  name: string
+  team: string
+  role: string
+  isAdmin: boolean
+}
+
 interface SentenceCreatorProps {
   question: string
   selectedTeam: string
+  currentPlayer: Player | null
+  gameState: {
+    liveSentenceWords: string[] // from game sync state
+  }
+  broadcastSentenceUpdate: (words: string[]) => void
   onSubmit: (sentence: string) => void
 }
 
@@ -27,20 +40,44 @@ const teamColors = {
   'Energizer': '#96CEB4'
 }
 
-export default function SentenceCreator({ question, selectedTeam, onSubmit }: SentenceCreatorProps) {
-  const [selectedWords, setSelectedWords] = useState<string[]>([])
+export default function SentenceCreator({
+  question,
+  selectedTeam,
+  currentPlayer,
+  gameState,
+  broadcastSentenceUpdate,
+  onSubmit,
+}: SentenceCreatorProps) {
+  // Use the liveSentenceWords from gameState to sync across clients
+  const [selectedWords, setSelectedWords] = useState<string[]>(gameState.liveSentenceWords || [])
   const [activeCategory, setActiveCategory] = useState<keyof typeof wordBank>('subjects')
 
+  // Sync local selectedWords when gameState.liveSentenceWords changes
+  useEffect(() => {
+    setSelectedWords(gameState.liveSentenceWords || [])
+  }, [gameState.liveSentenceWords])
+
+  // Only allow drag/add/remove if current player is on selected team OR is admin
+  const canEdit = currentPlayer?.isAdmin || currentPlayer?.team === selectedTeam
+
   const addWord = (word: string) => {
-    setSelectedWords(prev => [...prev, word])
+    if (!canEdit) return
+    const newWords = [...selectedWords, word]
+    setSelectedWords(newWords)
+    broadcastSentenceUpdate(newWords)
   }
 
   const removeWord = (index: number) => {
-    setSelectedWords(prev => prev.filter((_, i) => i !== index))
+    if (!canEdit) return
+    const newWords = selectedWords.filter((_, i) => i !== index)
+    setSelectedWords(newWords)
+    broadcastSentenceUpdate(newWords)
   }
 
   const clearSentence = () => {
+    if (!canEdit) return
     setSelectedWords([])
+    broadcastSentenceUpdate([])
   }
 
   const submitSentence = () => {
@@ -84,6 +121,7 @@ export default function SentenceCreator({ question, selectedTeam, onSubmit }: Se
                 variant="outline"
                 size="sm"
                 className="text-red-600 border-red-300 hover:bg-red-50"
+                disabled={!canEdit}
               >
                 <Trash2 className="w-4 h-4 mr-1" />
                 Clear
@@ -99,10 +137,14 @@ export default function SentenceCreator({ question, selectedTeam, onSubmit }: Se
                     <Badge
                       key={index}
                       variant="secondary"
-                      className="cursor-pointer hover:bg-red-100 hover:text-red-700 transition-colors px-3 py-1 text-sm"
-                      onClick={() => removeWord(index)}
+                      className={`cursor-pointer px-3 py-1 text-sm transition-colors ${
+                        canEdit
+                          ? "hover:bg-red-100 hover:text-red-700"
+                          : "cursor-default opacity-60"
+                      }`}
+                      onClick={() => canEdit && removeWord(index)}
                     >
-                      {word} ×
+                      {word} {canEdit && "×"}
                     </Badge>
                   ))}
                 </div>
@@ -142,7 +184,10 @@ export default function SentenceCreator({ question, selectedTeam, onSubmit }: Se
                   key={index}
                   onClick={() => addWord(word)}
                   variant="outline"
-                  className="h-auto py-3 px-4 text-sm hover:bg-purple-50 hover:border-purple-300 hover:text-purple-700 transition-all transform hover:scale-105"
+                  className={`h-auto py-3 px-4 text-sm transition-all transform hover:scale-105 ${
+                    canEdit ? "hover:bg-purple-50 hover:border-purple-300 hover:text-purple-700" : "opacity-60 cursor-not-allowed"
+                  }`}
+                  disabled={!canEdit}
                 >
                   {word}
                 </Button>
@@ -155,7 +200,7 @@ export default function SentenceCreator({ question, selectedTeam, onSubmit }: Se
         <div className="text-center">
           <Button
             onClick={submitSentence}
-            disabled={selectedWords.length === 0}
+            disabled={selectedWords.length === 0 || !canEdit}
             className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold px-12 py-4 rounded-lg shadow-lg transform transition hover:scale-105 text-lg"
           >
             <Send className="w-5 h-5 mr-2" />

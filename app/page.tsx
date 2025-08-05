@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,6 +33,7 @@ interface GameState {
   sentences: { playerId: string; sentence: string }[]
   votes: { playerId: string; vote: "agree" | "disagree"; reason: string }[]
   questionIndex: number
+  liveSentenceWords: string[]
 }
 
 const teams = ["Executive", "Review", "Teaching", "Energizer"]
@@ -45,7 +46,7 @@ const predefinedQuestions = [
   "What is the biggest challenge facing our team right now?",
 ]
 
-export default function ClassroomGame() {
+export default function GamePage() {
   const [gameState, setGameState] = useState<GameState>({
     phase: "landing",
     players: [],
@@ -55,6 +56,7 @@ export default function ClassroomGame() {
     sentences: [],
     votes: [],
     questionIndex: 0,
+    liveSentenceWords: [],
   })
 
   const [formData, setFormData] = useState({
@@ -68,21 +70,15 @@ export default function ClassroomGame() {
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null)
   const [isConnected, setIsConnected] = useState(false)
 
-  // Initialize game sync
   const {
     broadcastPlayerJoined,
     broadcastGameStarted,
     broadcastTeamSelected,
     broadcastSentenceSubmitted,
+    broadcastSentenceUpdate, // <-- added this here
     broadcastVoteCast,
-    broadcastPhaseChange,
+    broadcastPhaseChange
   } = useGameSync(gameState, setGameState, currentPlayer)
-
-  // Simulate connection status
-  useEffect(() => {
-    const timer = setTimeout(() => setIsConnected(true), 1000)
-    return () => clearTimeout(timer)
-  }, [])
 
   const handleRegistration = () => {
     if (!formData.name || !formData.team || !formData.role) return
@@ -102,35 +98,23 @@ export default function ClassroomGame() {
       players: [...prev.players, newPlayer],
       phase: "waiting",
     }))
-
-    // Broadcast to other players
     broadcastPlayerJoined(newPlayer)
   }
 
   const startGame = () => {
     if (!currentPlayer?.isAdmin) return
-
     const question = predefinedQuestions[0]
-    setGameState((prev) => ({
-      ...prev,
-      phase: "spinning",
-      currentQuestion: question,
-    }))
-
-    // Broadcast to other players
+    setGameState((prev) => ({ ...prev, phase: "spinning", currentQuestion: question }))
     broadcastGameStarted(question)
   }
 
-  // Connection status indicator
   const ConnectionStatus = () => (
     <div className="fixed top-4 right-4 z-50">
-      <div
-        className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium shadow-lg ${
-          isConnected
-            ? "bg-green-100 text-green-800 border border-green-200"
-            : "bg-red-100 text-red-800 border border-red-200"
-        }`}
-      >
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium shadow-lg ${
+        isConnected
+          ? "bg-green-100 text-green-800 border border-green-200"
+          : "bg-red-100 text-red-800 border border-red-200"
+      }`}>
         {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
         {isConnected ? "Live" : "Connecting..."}
       </div>
@@ -307,19 +291,26 @@ export default function ClassroomGame() {
     )
   }
 
-  // Spinning wheel phase
   if (gameState.phase === "spinning") {
     return (
       <>
         <ConnectionStatus />
         <SpinWheel
           teams={gameState.availableTeams}
+          selectedTeam={gameState.selectedTeam}
+          isAdmin={currentPlayer?.isAdmin || false}
           onTeamSelected={(team) => {
-            setGameState((prev) => ({
-              ...prev,
-              selectedTeam: team,
-            }))
-            broadcastTeamSelected(team)
+            if (currentPlayer?.isAdmin) {
+              // Admin selects team randomly and broadcasts it
+              const selectedIndex = Math.floor(Math.random() * gameState.availableTeams.length)
+              const selected = gameState.availableTeams[selectedIndex]
+
+              setGameState((prev) => ({
+                ...prev,
+                selectedTeam: selected,
+              }))
+              broadcastTeamSelected(selected)
+            }
           }}
           onContinue={() => {
             const newState = {
@@ -337,7 +328,6 @@ export default function ClassroomGame() {
     )
   }
 
-  // Sentence creation phase
   if (gameState.phase === "sentence") {
     return (
       <>
@@ -345,20 +335,24 @@ export default function ClassroomGame() {
         <SentenceCreator
           question={gameState.currentQuestion}
           selectedTeam={gameState.selectedTeam}
+          currentPlayer={currentPlayer}
+          gameState={gameState}
+          broadcastSentenceUpdate={broadcastSentenceUpdate}
           onSubmit={(sentence) => {
             setGameState((prev) => ({
               ...prev,
               sentences: [...prev.sentences, { playerId: currentPlayer?.id || "", sentence }],
               phase: "voting",
+              liveSentenceWords: [], // reset after submit
             }))
             broadcastSentenceSubmitted(sentence)
+            broadcastSentenceUpdate([]) // clear on all clients
           }}
         />
       </>
     )
   }
 
-  // Voting phase
   if (gameState.phase === "voting") {
     const currentSentence = gameState.sentences[gameState.sentences.length - 1]
 
@@ -369,23 +363,28 @@ export default function ClassroomGame() {
           question={gameState.currentQuestion}
           selectedTeam={gameState.selectedTeam}
           sentence={currentSentence?.sentence || ""}
+          isAdmin={!!currentPlayer?.isAdmin}
           onVote={(vote, reason) => {
-            const newVotes = [
-              ...gameState.votes,
-              {
-                playerId: currentPlayer?.id || "",
-                vote,
-                reason,
-              },
-            ]
+            const playerAlreadyVoted = gameState.votes.some((v) => v.playerId === currentPlayer?.id)
+            if (playerAlreadyVoted) return
+
+            const newVote = { playerId: currentPlayer?.id || "", vote, reason }
 
             setGameState((prev) => ({
               ...prev,
-              votes: newVotes,
-              phase: "results",
+              votes: [...prev.votes, newVote],
             }))
 
             broadcastVoteCast(vote, reason)
+
+            const totalExpectedVotes = gameState.players.length
+            if (gameState.votes.length + 1 >= totalExpectedVotes) {
+              setGameState((prev) => ({ ...prev, phase: "results" }))
+              broadcastPhaseChange("results")
+            }
+          }}
+          onForceSubmit={() => {
+            setGameState((prev) => ({ ...prev, phase: "results" }))
             broadcastPhaseChange("results")
           }}
         />
@@ -393,7 +392,6 @@ export default function ClassroomGame() {
     )
   }
 
-  // Results phase
   if (gameState.phase === "results") {
     const currentSentence = gameState.sentences[gameState.sentences.length - 1]
     const isLastTeam = gameState.availableTeams.length === 0
@@ -412,11 +410,9 @@ export default function ClassroomGame() {
           isGameFinished={isLastTeam && isLastUserQuestion}
           onContinue={() => {
             if (isLastTeam) {
-              // Move to next question or finish game
               const nextQuestionIndex = gameState.questionIndex + 1
 
               if (nextQuestionIndex < predefinedQuestions.length) {
-                // Next predefined question
                 const newState = {
                   phase: "spinning" as const,
                   availableTeams: [...teams],
@@ -429,7 +425,6 @@ export default function ClassroomGame() {
                 setGameState((prev) => ({ ...prev, ...newState }))
                 broadcastPhaseChange("spinning", newState)
               } else if (nextQuestionIndex < predefinedQuestions.length + userQuestions.length) {
-                // User submitted questions
                 const userQuestionIndex = nextQuestionIndex - predefinedQuestions.length
                 const newState = {
                   phase: "spinning" as const,
@@ -443,13 +438,11 @@ export default function ClassroomGame() {
                 setGameState((prev) => ({ ...prev, ...newState }))
                 broadcastPhaseChange("spinning", newState)
               } else {
-                // Game finished
                 const newState = { phase: "finished" as const }
                 setGameState((prev) => ({ ...prev, ...newState }))
                 broadcastPhaseChange("finished", newState)
               }
             } else {
-              // Continue with next team for same question
               const newState = {
                 phase: "spinning" as const,
                 selectedTeam: "",
@@ -465,7 +458,6 @@ export default function ClassroomGame() {
     )
   }
 
-  // Game finished
   if (gameState.phase === "finished") {
     const allVotes = gameState.votes
     return (
@@ -477,11 +469,26 @@ export default function ClassroomGame() {
           sentence="Thank you for participating!"
           votes={allVotes}
           isGameFinished={true}
-          onContinue={() => {}}
+          onContinue={() => {
+            // maybe reset the game or show summary
+            setGameState({
+              phase: "landing",
+              players: [],
+              currentQuestion: "",
+              availableTeams: [...teams],
+              selectedTeam: "",
+              sentences: [],
+              votes: [],
+              questionIndex: 0,
+              liveSentenceWords: [],
+            })
+            setCurrentPlayer(null)
+          }}
         />
       </>
     )
   }
 
-  return null
+  // Fallback UI (should never happen)
+  return <div>Loading...</div>
 }

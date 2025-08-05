@@ -11,6 +11,8 @@ interface VotingInterfaceProps {
   question: string
   selectedTeam: string
   sentence: string
+  isAdmin: boolean      
+  onForceSubmit: () => void 
   onVote: (vote: 'agree' | 'disagree', reason: string) => void
 }
 
@@ -21,7 +23,7 @@ const teamColors = {
   'Energizer': '#96CEB4'
 }
 
-export default function VotingInterface({ question, selectedTeam, sentence, onVote }: VotingInterfaceProps) {
+export default function VotingInterface({ question, selectedTeam, sentence, isAdmin, onForceSubmit, onVote }: VotingInterfaceProps) {
   const [selectedVote, setSelectedVote] = useState<'agree' | 'disagree' | null>(null)
   const [reason, setReason] = useState('')
 
@@ -144,6 +146,21 @@ export default function VotingInterface({ question, selectedTeam, sentence, onVo
                 </Button>
               </div>
             )}
+            {isAdmin && (
+              <div className="text-center mt-4">
+                <Button
+                    onClick={onForceSubmit}
+                    variant="destructive"
+                    className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white font-semibold px-6 py-3 rounded-lg shadow-lg transition hover:scale-105 text-base"
+                    >
+      🚨 Force Submit for Everyone
+    </Button>
+    <p className="text-xs text-gray-500 mt-2">
+      This will skip the vote phase even if some players haven’t submitted.
+    </p>
+  </div>
+)}
+
           </CardContent>
         </Card>
 

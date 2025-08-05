@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -8,6 +8,8 @@ import { RotateCcw, Play, Users } from "lucide-react"
 
 interface SpinWheelProps {
   teams: string[]
+  selectedTeam: string
+  isAdmin: boolean
   onTeamSelected: (team: string) => void
   onContinue: () => void
 }
@@ -19,28 +21,32 @@ const teamColors = {
   Energizer: "#96CEB4",
 }
 
-export default function SpinWheel({ teams, onTeamSelected, onContinue }: SpinWheelProps) {
+export default function SpinWheel({ teams, selectedTeam, isAdmin, onTeamSelected, onContinue }: SpinWheelProps) {
   const [isSpinning, setIsSpinning] = useState(false)
-  const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [rotation, setRotation] = useState(0)
 
+  // When selectedTeam is updated via socket, spin toward it
+  useEffect(() => {
+    if (selectedTeam && teams.includes(selectedTeam)) {
+      const index = teams.indexOf(selectedTeam)
+      const extraSpins = 4 + Math.floor(Math.random() * 3) // 4–6 spins
+      const degPerSlice = 360 / teams.length
+      const targetRotation = extraSpins * 360 + index * degPerSlice
+
+      setIsSpinning(true)
+      setRotation((prev) => prev + targetRotation)
+
+      setTimeout(() => {
+        setIsSpinning(false)
+      }, 3000)
+    }
+  }, [selectedTeam])
+
   const spinWheel = () => {
-    if (teams.length === 0) return
-
-    setIsSpinning(true)
-    setSelectedTeam(null)
-
-    // Random rotation between 1440 and 2160 degrees (4-6 full rotations)
-    const randomRotation = 1440 + Math.random() * 720
-    setRotation((prev) => prev + randomRotation)
-
-    setTimeout(() => {
-      const selectedIndex = Math.floor(Math.random() * teams.length)
-      const selected = teams[selectedIndex]
-      setSelectedTeam(selected)
-      setIsSpinning(false)
-      onTeamSelected(selected)
-    }, 3000)
+    if (teams.length === 0 || isSpinning) return
+    const selectedIndex = Math.floor(Math.random() * teams.length)
+    const selected = teams[selectedIndex]
+    onTeamSelected(selected) // Only admin triggers this
   }
 
   const handleContinue = () => {
@@ -106,28 +112,22 @@ export default function SpinWheel({ teams, onTeamSelected, onContinue }: SpinWhe
                   .join(", ")})`,
               }}
             >
-              {/* Team labels */}
               {teams.map((team, index) => {
                 const segmentAngle = 360 / teams.length
-                const angle = index * segmentAngle + segmentAngle / 2 - 90 // -90 to start from top
-                const radius = 110 // Distance from center
-                const x = 50 + (radius * Math.cos((angle * Math.PI) / 180)) / 3.2 // Adjust for container size
+                const angle = index * segmentAngle + segmentAngle / 2 - 90
+                const radius = 110
+                const x = 50 + (radius * Math.cos((angle * Math.PI) / 180)) / 3.2
                 const y = 50 + (radius * Math.sin((angle * Math.PI) / 180)) / 3.2
 
                 return (
                   <div
                     key={`label-${team}`}
                     className="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                    style={{
-                      left: `${x}%`,
-                      top: `${y}%`,
-                    }}
+                    style={{ left: `${x}%`, top: `${y}%` }}
                   >
                     <span
                       className="text-white font-bold text-lg drop-shadow-lg whitespace-nowrap"
-                      style={{
-                        transform: `rotate(${angle + 90}deg)`,
-                      }}
+                      style={{ transform: `rotate(${angle + 90}deg)` }}
                     >
                       {team}
                     </span>
@@ -163,14 +163,16 @@ export default function SpinWheel({ teams, onTeamSelected, onContinue }: SpinWhe
           )}
 
           <div className="flex gap-4 justify-center">
-            <Button
-              onClick={spinWheel}
-              disabled={isSpinning || teams.length === 0}
-              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transform transition hover:scale-105"
-            >
-              <RotateCcw className="w-5 h-5 mr-2" />
-              {isSpinning ? "Spinning..." : selectedTeam ? "Spin Again" : "Spin the Wheel!"}
-            </Button>
+            {isAdmin && (
+              <Button
+                onClick={spinWheel}
+                disabled={isSpinning || teams.length === 0}
+                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transform transition hover:scale-105"
+              >
+                <RotateCcw className="w-5 h-5 mr-2" />
+                {isSpinning ? "Spinning..." : selectedTeam ? "Spin Again" : "Spin the Wheel!"}
+              </Button>
+            )}
 
             {selectedTeam && (
               <Button
