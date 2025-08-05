@@ -1,6 +1,4 @@
 // lib/websocket.ts
-"use client"
-
 import { io, Socket } from "socket.io-client"
 
 export interface GameMessage {
@@ -18,30 +16,44 @@ export interface GameMessage {
   timestamp: number
 }
 
-let socket: Socket | null = null
+class GameWebSocket {
+  private socket: Socket
+  private messageHandlers: ((msg: GameMessage) => void)[] = []
 
-export function getGameWebSocket(): {
-  sendMessage: (message: Omit<GameMessage, "timestamp">) => void
-  onMessage: (handler: (message: GameMessage) => void) => void
-} {
-  if (!socket) {
-    socket = io("https://your-backend-url.onrender.com") // 🔁 Replace with your actual Render backend URL
+  constructor() {
+    this.socket = io()
+
+    this.socket.on("connect", () => {
+      console.log("✅ Connected to Socket.IO")
+    })
+
+    this.socket.on("game_message", (msg: GameMessage) => {
+      this.messageHandlers.forEach((handler) => handler(msg))
+    })
   }
 
-  function sendMessage(message: Omit<GameMessage, "timestamp">) {
+  public sendMessage(message: Omit<GameMessage, "timestamp">) {
     const fullMessage: GameMessage = {
       ...message,
-      timestamp: Date.now(),
+      timestamp: Date.now()
     }
-    socket?.emit("message", fullMessage)
+    this.socket.emit("game_message", fullMessage)
   }
 
-  function onMessage(handler: (message: GameMessage) => void) {
-    socket?.on("message", handler)
+  public onMessage(handler: (message: GameMessage) => void) {
+    this.messageHandlers.push(handler)
   }
 
-  return {
-    sendMessage,
-    onMessage,
+  public disconnect() {
+    this.socket.disconnect()
   }
+}
+
+let gameWebSocket: GameWebSocket | null = null
+
+export function getGameWebSocket(): GameWebSocket {
+  if (!gameWebSocket) {
+    gameWebSocket = new GameWebSocket()
+  }
+  return gameWebSocket
 }
