@@ -22,13 +22,12 @@ app.prepare().then(() => {
 
   io.on("connection", (socket) => {
     console.log("New client connected");
-    // Optional: socket.on(...) handlers
   });
 
   server.use(cors());
 
-  // Important: this must be "*"
-  server.all("*", (req, res) => {
+  // ✅ FIX: Use wildcard route that Express 5+ allows
+  server.all("/*", (req, res) => {
     return handle(req, res);
   });
 
