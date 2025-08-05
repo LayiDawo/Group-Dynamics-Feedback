@@ -14,34 +14,30 @@ app.prepare().then(() => {
   const server = express();
   const httpServer = http.createServer(server);
 
+  // Enable CORS for all origins and methods
+  server.use(cors());
+
+  // Setup Socket.IO with CORS config
   const io = new Server(httpServer, {
     cors: {
-      origin: "https://group-dynamics-feedback.onrender.com",
+      origin: "*",
       methods: ["GET", "POST"],
-      credentials: true,
     },
   });
 
   io.on("connection", (socket) => {
-    console.log("New client connected");
-    // Your socket.io event handling here
+    console.log("New client connected:", socket.id);
+    // You can add socket event handlers here
   });
 
-  // Enable CORS middleware for Express routes as well
-  server.use(
-    cors({
-      origin: "https://group-dynamics-feedback.onrender.com",
-      methods: ["GET", "POST"],
-      credentials: true,
-    })
-  );
-
-  // Let Next.js handle all frontend routes with a wildcard route
-  server.all("/*", (req, res) => {
+  // Catch all route handler for Next.js
+  server.use((req, res) => {
     return handle(req, res);
   });
 
   httpServer.listen(port, () => {
     console.log(`> Ready on http://localhost:${port}`);
   });
+}).catch((err) => {
+  console.error("Error starting server:", err);
 });
