@@ -9,6 +9,8 @@ export interface GameMessage {
     | "vote_cast"
     | "phase_changed"
     | "game_reset"
+    | "sentence_update"
+    | "force_submit"
   payload: any
   timestamp: number
 }
