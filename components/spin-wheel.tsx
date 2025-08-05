@@ -3,7 +3,8 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { RotateCcw, Play } from 'lucide-react'
+import { Badge } from "@/components/ui/badge"
+import { RotateCcw, Play, Users } from "lucide-react"
 
 interface SpinWheelProps {
   teams: string[]
@@ -48,14 +49,12 @@ export default function SpinWheel({ teams, onTeamSelected, onContinue }: SpinWhe
     }
   }
 
-  const sectorAngle = 360 / teams.length
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl shadow-2xl border-0 bg-white/95 backdrop-blur">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-            🎯 Team Selector Wheel
+            🎯 Live Team Selector
           </CardTitle>
           <p className="text-gray-600 mt-2">
             {teams.length === 4
@@ -64,21 +63,31 @@ export default function SpinWheel({ teams, onTeamSelected, onContinue }: SpinWhe
           </p>
           <div className="mt-3 flex justify-center gap-2">
             {teams.map((team) => (
-              <span
+              <Badge
                 key={team}
-                className="px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm"
+                variant="secondary"
+                className="text-xs font-semibold text-white shadow-sm"
                 style={{ backgroundColor: teamColors[team as keyof typeof teamColors] }}
               >
                 {team}
-              </span>
+              </Badge>
             ))}
           </div>
         </CardHeader>
-        <div className="mb-6 bg-gradient-to-r from-blue-100 to-purple-100 p-4 rounded-lg">
-          <p className="text-sm font-semibold text-gray-600 mb-2">Current Question:</p>
-          <p className="text-lg text-gray-800 font-medium">
-            {teams.length === 4 ? "Starting new round!" : "Continuing with current question..."}
-          </p>
+        <div className="mb-6 bg-gradient-to-r from-blue-100 to-purple-100 p-4 rounded-lg mx-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-600 mb-1">Current Question:</p>
+              <p className="text-lg text-gray-800 font-medium">
+                {teams.length === 4 ? "Starting new round!" : "Continuing with current question..."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Users className="w-4 h-4" />
+              <span>All players watching</span>
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            </div>
+          </div>
         </div>
         <CardContent className="space-y-8">
           <div className="relative mx-auto w-80 h-80">
@@ -87,21 +96,23 @@ export default function SpinWheel({ teams, onTeamSelected, onContinue }: SpinWhe
               className={`w-full h-full rounded-full border-8 border-white shadow-2xl transition-transform duration-3000 ease-out relative overflow-hidden`}
               style={{
                 transform: `rotate(${rotation}deg)`,
-                background: `conic-gradient(${teams.map((team, index) => {
-                  const segmentSize = 100 / teams.length;
-                  const startPercent = index * segmentSize;
-                  const endPercent = (index + 1) * segmentSize;
-                  return `${teamColors[team as keyof typeof teamColors]} ${startPercent}% ${endPercent}%`;
-                }).join(', ')})`,
+                background: `conic-gradient(${teams
+                  .map((team, index) => {
+                    const segmentSize = 100 / teams.length
+                    const startPercent = index * segmentSize
+                    const endPercent = (index + 1) * segmentSize
+                    return `${teamColors[team as keyof typeof teamColors]} ${startPercent}% ${endPercent}%`
+                  })
+                  .join(", ")})`,
               }}
             >
               {/* Team labels */}
               {teams.map((team, index) => {
-                const segmentAngle = 360 / teams.length;
-                const angle = index * segmentAngle + segmentAngle / 2 - 90; // -90 to start from top
-                const radius = 110; // Distance from center
-                const x = 50 + (radius * Math.cos((angle * Math.PI) / 180)) / 3.2; // Adjust for container size
-                const y = 50 + (radius * Math.sin((angle * Math.PI) / 180)) / 3.2;
+                const segmentAngle = 360 / teams.length
+                const angle = index * segmentAngle + segmentAngle / 2 - 90 // -90 to start from top
+                const radius = 110 // Distance from center
+                const x = 50 + (radius * Math.cos((angle * Math.PI) / 180)) / 3.2 // Adjust for container size
+                const y = 50 + (radius * Math.sin((angle * Math.PI) / 180)) / 3.2
 
                 return (
                   <div
@@ -112,7 +123,7 @@ export default function SpinWheel({ teams, onTeamSelected, onContinue }: SpinWhe
                       top: `${y}%`,
                     }}
                   >
-                    <span 
+                    <span
                       className="text-white font-bold text-lg drop-shadow-lg whitespace-nowrap"
                       style={{
                         transform: `rotate(${angle + 90}deg)`,
@@ -121,7 +132,7 @@ export default function SpinWheel({ teams, onTeamSelected, onContinue }: SpinWhe
                       {team}
                     </span>
                   </div>
-                );
+                )
               })}
             </div>
 
@@ -146,6 +157,7 @@ export default function SpinWheel({ teams, onTeamSelected, onContinue }: SpinWhe
                 >
                   {selectedTeam}
                 </p>
+                <p className="text-sm text-gray-600 mt-2">All players will see this selection live!</p>
               </div>
             </div>
           )}

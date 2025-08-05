@@ -1,17 +1,19 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Users, GamepadIcon, Sparkles } from 'lucide-react'
-import SpinWheel from '@/components/spin-wheel'
-import SentenceCreator from '@/components/sentence-creator'
-import VotingInterface from '@/components/voting-interface'
-import GameResults from '@/components/game-results'
+import { Badge } from "@/components/ui/badge"
+import { Users, GamepadIcon, Sparkles, Wifi, WifiOff } from "lucide-react"
+import SpinWheel from "@/components/spin-wheel"
+import SentenceCreator from "@/components/sentence-creator"
+import VotingInterface from "@/components/voting-interface"
+import GameResults from "@/components/game-results"
+import { useGameSync } from "@/hooks/use-game-sync"
 
 interface Player {
   id: string
@@ -23,47 +25,64 @@ interface Player {
 }
 
 interface GameState {
-  phase: 'landing' | 'waiting' | 'spinning' | 'sentence' | 'voting' | 'results' | 'finished'
+  phase: "landing" | "waiting" | "spinning" | "sentence" | "voting" | "results" | "finished"
   players: Player[]
   currentQuestion: string
   availableTeams: string[]
   selectedTeam: string
-  sentences: { playerId: string, sentence: string }[]
-  votes: { playerId: string, vote: 'agree' | 'disagree', reason: string }[]
+  sentences: { playerId: string; sentence: string }[]
+  votes: { playerId: string; vote: "agree" | "disagree"; reason: string }[]
   questionIndex: number
 }
 
-const teams = ['Executive', 'Review', 'Teaching', 'Energizer']
-const roles = ['Manager', 'Developer', 'Designer', 'Analyst', 'Coordinator', 'Specialist']
+const teams = ["Executive", "Review", "Teaching", "Energizer"]
+const roles = ["Manager", "Developer", "Designer", "Analyst", "Coordinator", "Specialist"]
 
 const predefinedQuestions = [
   "What is the most important skill for effective teamwork?",
   "How can we improve communication in our organization?",
   "What motivates you most in your work environment?",
-  "What is the biggest challenge facing our team right now?"
+  "What is the biggest challenge facing our team right now?",
 ]
 
 export default function ClassroomGame() {
   const [gameState, setGameState] = useState<GameState>({
-    phase: 'landing',
+    phase: "landing",
     players: [],
-    currentQuestion: '',
+    currentQuestion: "",
     availableTeams: [...teams],
-    selectedTeam: '',
+    selectedTeam: "",
     sentences: [],
     votes: [],
-    questionIndex: 0
+    questionIndex: 0,
   })
 
   const [formData, setFormData] = useState({
-    name: '',
-    team: '',
-    role: '',
+    name: "",
+    team: "",
+    role: "",
     isAdmin: false,
-    question: ''
+    question: "",
   })
 
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null)
+  const [isConnected, setIsConnected] = useState(false)
+
+  // Initialize game sync
+  const {
+    broadcastPlayerJoined,
+    broadcastGameStarted,
+    broadcastTeamSelected,
+    broadcastSentenceSubmitted,
+    broadcastVoteCast,
+    broadcastPhaseChange,
+  } = useGameSync(gameState, setGameState, currentPlayer)
+
+  // Simulate connection status
+  useEffect(() => {
+    const timer = setTimeout(() => setIsConnected(true), 1000)
+    return () => clearTimeout(timer)
+  }, [])
 
   const handleRegistration = () => {
     if (!formData.name || !formData.team || !formData.role) return
@@ -74,77 +93,115 @@ export default function ClassroomGame() {
       team: formData.team,
       role: formData.role,
       isAdmin: formData.isAdmin,
-      question: formData.question || undefined
+      question: formData.question || undefined,
     }
 
     setCurrentPlayer(newPlayer)
-    setGameState(prev => ({
+    setGameState((prev) => ({
       ...prev,
       players: [...prev.players, newPlayer],
-      phase: 'waiting'
+      phase: "waiting",
     }))
+
+    // Broadcast to other players
+    broadcastPlayerJoined(newPlayer)
   }
 
   const startGame = () => {
     if (!currentPlayer?.isAdmin) return
-    
-    setGameState(prev => ({
+
+    const question = predefinedQuestions[0]
+    setGameState((prev) => ({
       ...prev,
-      phase: 'spinning',
-      currentQuestion: predefinedQuestions[0]
+      phase: "spinning",
+      currentQuestion: question,
     }))
+
+    // Broadcast to other players
+    broadcastGameStarted(question)
   }
 
-  if (gameState.phase === 'landing') {
+  // Connection status indicator
+  const ConnectionStatus = () => (
+    <div className="fixed top-4 right-4 z-50">
+      <div
+        className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium shadow-lg ${
+          isConnected
+            ? "bg-green-100 text-green-800 border border-green-200"
+            : "bg-red-100 text-red-800 border border-red-200"
+        }`}
+      >
+        {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+        {isConnected ? "Live" : "Connecting..."}
+      </div>
+    </div>
+  )
+
+  if (gameState.phase === "landing") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-400 via-pink-500 to-red-500 flex items-center justify-center p-4">
+        <ConnectionStatus />
         <Card className="w-full max-w-md shadow-2xl border-0 bg-white/95 backdrop-blur">
           <CardHeader className="text-center space-y-4">
             <div className="mx-auto w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
               <GamepadIcon className="w-8 h-8 text-white" />
             </div>
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              Team Game Hub
+              Live Team Game Hub
             </CardTitle>
             <CardDescription className="text-lg text-gray-600">
-              Register your device to join the fun! 🎉
+              Register your device to join the live game! 🎉
             </CardDescription>
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              Real-time sync enabled
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-semibold">Your Name</Label>
+              <Label htmlFor="name" className="text-sm font-semibold">
+                Your Name
+              </Label>
               <Input
                 id="name"
                 placeholder="Enter your name"
                 value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                 className="border-2 border-purple-200 focus:border-purple-400"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="team" className="text-sm font-semibold">Select Your Team</Label>
-              <Select onValueChange={(value) => setFormData(prev => ({ ...prev, team: value }))}>
+              <Label htmlFor="team" className="text-sm font-semibold">
+                Select Your Team
+              </Label>
+              <Select onValueChange={(value) => setFormData((prev) => ({ ...prev, team: value }))}>
                 <SelectTrigger className="border-2 border-purple-200 focus:border-purple-400">
                   <SelectValue placeholder="Choose a team" />
                 </SelectTrigger>
                 <SelectContent>
-                  {teams.map(team => (
-                    <SelectItem key={team} value={team}>{team}</SelectItem>
+                  {teams.map((team) => (
+                    <SelectItem key={team} value={team}>
+                      {team}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="role" className="text-sm font-semibold">Your Role</Label>
-              <Select onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}>
+              <Label htmlFor="role" className="text-sm font-semibold">
+                Your Role
+              </Label>
+              <Select onValueChange={(value) => setFormData((prev) => ({ ...prev, role: value }))}>
                 <SelectTrigger className="border-2 border-purple-200 focus:border-purple-400">
                   <SelectValue placeholder="Choose your role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.map(role => (
-                    <SelectItem key={role} value={role}>{role}</SelectItem>
+                  {roles.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -155,10 +212,12 @@ export default function ClassroomGame() {
                 type="checkbox"
                 id="admin"
                 checked={formData.isAdmin}
-                onChange={(e) => setFormData(prev => ({ ...prev, isAdmin: e.target.checked }))}
+                onChange={(e) => setFormData((prev) => ({ ...prev, isAdmin: e.target.checked }))}
                 className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
               />
-              <Label htmlFor="admin" className="text-sm font-semibold">I am an admin</Label>
+              <Label htmlFor="admin" className="text-sm font-semibold">
+                I am an admin
+              </Label>
             </div>
 
             <div className="space-y-2">
@@ -169,18 +228,18 @@ export default function ClassroomGame() {
                 id="question"
                 placeholder="Enter a question you'd like the group to discuss..."
                 value={formData.question}
-                onChange={(e) => setFormData(prev => ({ ...prev, question: e.target.value }))}
+                onChange={(e) => setFormData((prev) => ({ ...prev, question: e.target.value }))}
                 className="border-2 border-purple-200 focus:border-purple-400 min-h-[80px]"
               />
             </div>
 
-            <Button 
+            <Button
               onClick={handleRegistration}
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold py-3 rounded-lg shadow-lg transform transition hover:scale-105"
               disabled={!formData.name || !formData.team || !formData.role}
             >
               <Users className="w-5 h-5 mr-2" />
-              Join the Game!
+              Join Live Game!
             </Button>
           </CardContent>
         </Card>
@@ -188,9 +247,10 @@ export default function ClassroomGame() {
     )
   }
 
-  if (gameState.phase === 'waiting') {
+  if (gameState.phase === "waiting") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 flex items-center justify-center p-4">
+        <ConnectionStatus />
         <Card className="w-full max-w-lg shadow-2xl border-0 bg-white/95 backdrop-blur text-center">
           <CardHeader className="space-y-6">
             <div className="mx-auto w-20 h-20 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center animate-pulse">
@@ -200,37 +260,45 @@ export default function ClassroomGame() {
               Welcome, {currentPlayer?.name}! 🎊
             </CardTitle>
             <CardDescription className="text-lg text-gray-600">
-              {currentPlayer?.isAdmin 
+              {currentPlayer?.isAdmin
                 ? "You're the admin! Start the game when everyone is ready."
-                : "Waiting for an admin to start the game..."
-              }
+                : "Waiting for an admin to start the game..."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="bg-gradient-to-r from-yellow-100 to-orange-100 p-4 rounded-lg">
-              <p className="text-sm font-semibold text-gray-700">Players Joined: {gameState.players.length}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {gameState.players.map(player => (
-                  <span key={player.id} className="px-3 py-1 bg-white rounded-full text-xs font-medium shadow">
-                    {player.name} ({player.team})
-                  </span>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-gray-700">Players Joined: {gameState.players.length}</p>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs text-green-600">Live</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {gameState.players.map((player) => (
+                  <Badge key={player.id} variant="secondary" className="text-xs">
+                    {player.name} ({player.team}){player.isAdmin && <span className="ml-1 text-blue-600">👑</span>}
+                  </Badge>
                 ))}
               </div>
             </div>
 
             {currentPlayer?.isAdmin && (
-              <Button 
+              <Button
                 onClick={startGame}
                 className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold py-4 rounded-lg shadow-lg transform transition hover:scale-105"
               >
                 <GamepadIcon className="w-5 h-5 mr-2" />
-                Start the Game! 🚀
+                Start Live Game! 🚀
               </Button>
             )}
 
             {!currentPlayer?.isAdmin && (
-              <div className="animate-bounce">
-                <div className="w-8 h-8 mx-auto bg-gradient-to-r from-purple-400 to-pink-400 rounded-full"></div>
+              <div className="space-y-3">
+                <div className="animate-bounce">
+                  <div className="w-8 h-8 mx-auto bg-gradient-to-r from-purple-400 to-pink-400 rounded-full"></div>
+                </div>
+                <p className="text-sm text-gray-500">Game will start automatically when admin is ready</p>
               </div>
             )}
           </CardContent>
@@ -240,148 +308,180 @@ export default function ClassroomGame() {
   }
 
   // Spinning wheel phase
-  if (gameState.phase === 'spinning') {
+  if (gameState.phase === "spinning") {
     return (
-      <SpinWheel
-        teams={gameState.availableTeams}
-        onTeamSelected={(team) => {
-          setGameState(prev => ({
-            ...prev,
-            selectedTeam: team
-          }))
-        }}
-        onContinue={() => {
-          setGameState(prev => ({
-            ...prev,
-            phase: 'sentence',
-            availableTeams: prev.availableTeams.filter(team => team !== prev.selectedTeam)
-          }))
-        }}
-      />
+      <>
+        <ConnectionStatus />
+        <SpinWheel
+          teams={gameState.availableTeams}
+          onTeamSelected={(team) => {
+            setGameState((prev) => ({
+              ...prev,
+              selectedTeam: team,
+            }))
+            broadcastTeamSelected(team)
+          }}
+          onContinue={() => {
+            const newState = {
+              phase: "sentence" as const,
+              availableTeams: gameState.availableTeams.filter((team) => team !== gameState.selectedTeam),
+            }
+            setGameState((prev) => ({
+              ...prev,
+              ...newState,
+            }))
+            broadcastPhaseChange("sentence", newState)
+          }}
+        />
+      </>
     )
   }
 
   // Sentence creation phase
-  if (gameState.phase === 'sentence') {
+  if (gameState.phase === "sentence") {
     return (
-      <SentenceCreator
-        question={gameState.currentQuestion}
-        selectedTeam={gameState.selectedTeam}
-        onSubmit={(sentence) => {
-          setGameState(prev => ({
-            ...prev,
-            sentences: [...prev.sentences, { playerId: currentPlayer?.id || '', sentence }],
-            phase: 'voting'
-          }))
-        }}
-      />
+      <>
+        <ConnectionStatus />
+        <SentenceCreator
+          question={gameState.currentQuestion}
+          selectedTeam={gameState.selectedTeam}
+          onSubmit={(sentence) => {
+            setGameState((prev) => ({
+              ...prev,
+              sentences: [...prev.sentences, { playerId: currentPlayer?.id || "", sentence }],
+              phase: "voting",
+            }))
+            broadcastSentenceSubmitted(sentence)
+          }}
+        />
+      </>
     )
   }
 
   // Voting phase
-  if (gameState.phase === 'voting') {
+  if (gameState.phase === "voting") {
     const currentSentence = gameState.sentences[gameState.sentences.length - 1]
-    
+
     return (
-      <VotingInterface
-        question={gameState.currentQuestion}
-        selectedTeam={gameState.selectedTeam}
-        sentence={currentSentence?.sentence || ''}
-        onVote={(vote, reason) => {
-          const newVotes = [...gameState.votes, { 
-            playerId: currentPlayer?.id || '', 
-            vote, 
-            reason 
-          }]
-          
-          setGameState(prev => ({
-            ...prev,
-            votes: newVotes,
-            phase: 'results'
-          }))
-        }}
-      />
+      <>
+        <ConnectionStatus />
+        <VotingInterface
+          question={gameState.currentQuestion}
+          selectedTeam={gameState.selectedTeam}
+          sentence={currentSentence?.sentence || ""}
+          onVote={(vote, reason) => {
+            const newVotes = [
+              ...gameState.votes,
+              {
+                playerId: currentPlayer?.id || "",
+                vote,
+                reason,
+              },
+            ]
+
+            setGameState((prev) => ({
+              ...prev,
+              votes: newVotes,
+              phase: "results",
+            }))
+
+            broadcastVoteCast(vote, reason)
+            broadcastPhaseChange("results")
+          }}
+        />
+      </>
     )
   }
 
   // Results phase
-  if (gameState.phase === 'results') {
+  if (gameState.phase === "results") {
     const currentSentence = gameState.sentences[gameState.sentences.length - 1]
     const isLastTeam = gameState.availableTeams.length === 0
     const isLastQuestion = gameState.questionIndex >= predefinedQuestions.length - 1
-    const userQuestions = gameState.players.filter(p => p.question).map(p => p.question!)
+    const userQuestions = gameState.players.filter((p) => p.question).map((p) => p.question!)
     const isLastUserQuestion = gameState.questionIndex >= predefinedQuestions.length + userQuestions.length - 1
-    
+
     return (
-      <GameResults
-        question={gameState.currentQuestion}
-        selectedTeam={gameState.selectedTeam}
-        sentence={currentSentence?.sentence || ''}
-        votes={gameState.votes}
-        isGameFinished={isLastTeam && isLastUserQuestion}
-        onContinue={() => {
-          if (isLastTeam) {
-            // Move to next question or finish game
-            const nextQuestionIndex = gameState.questionIndex + 1
-            
-            if (nextQuestionIndex < predefinedQuestions.length) {
-              // Next predefined question
-              setGameState(prev => ({
-                ...prev,
-                phase: 'spinning',
-                availableTeams: [...teams],
-                selectedTeam: '',
-                sentences: [],
-                votes: [],
-                questionIndex: nextQuestionIndex,
-                currentQuestion: predefinedQuestions[nextQuestionIndex]
-              }))
-            } else if (nextQuestionIndex < predefinedQuestions.length + userQuestions.length) {
-              // User submitted questions
-              const userQuestionIndex = nextQuestionIndex - predefinedQuestions.length
-              setGameState(prev => ({
-                ...prev,
-                phase: 'spinning',
-                availableTeams: [...teams],
-                selectedTeam: '',
-                sentences: [],
-                votes: [],
-                questionIndex: nextQuestionIndex,
-                currentQuestion: userQuestions[userQuestionIndex]
-              }))
+      <>
+        <ConnectionStatus />
+        <GameResults
+          question={gameState.currentQuestion}
+          selectedTeam={gameState.selectedTeam}
+          sentence={currentSentence?.sentence || ""}
+          votes={gameState.votes}
+          isGameFinished={isLastTeam && isLastUserQuestion}
+          onContinue={() => {
+            if (isLastTeam) {
+              // Move to next question or finish game
+              const nextQuestionIndex = gameState.questionIndex + 1
+
+              if (nextQuestionIndex < predefinedQuestions.length) {
+                // Next predefined question
+                const newState = {
+                  phase: "spinning" as const,
+                  availableTeams: [...teams],
+                  selectedTeam: "",
+                  sentences: [],
+                  votes: [],
+                  questionIndex: nextQuestionIndex,
+                  currentQuestion: predefinedQuestions[nextQuestionIndex],
+                }
+                setGameState((prev) => ({ ...prev, ...newState }))
+                broadcastPhaseChange("spinning", newState)
+              } else if (nextQuestionIndex < predefinedQuestions.length + userQuestions.length) {
+                // User submitted questions
+                const userQuestionIndex = nextQuestionIndex - predefinedQuestions.length
+                const newState = {
+                  phase: "spinning" as const,
+                  availableTeams: [...teams],
+                  selectedTeam: "",
+                  sentences: [],
+                  votes: [],
+                  questionIndex: nextQuestionIndex,
+                  currentQuestion: userQuestions[userQuestionIndex],
+                }
+                setGameState((prev) => ({ ...prev, ...newState }))
+                broadcastPhaseChange("spinning", newState)
+              } else {
+                // Game finished
+                const newState = { phase: "finished" as const }
+                setGameState((prev) => ({ ...prev, ...newState }))
+                broadcastPhaseChange("finished", newState)
+              }
             } else {
-              // Game finished
-              setGameState(prev => ({
-                ...prev,
-                phase: 'finished'
-              }))
+              // Continue with next team for same question
+              const newState = {
+                phase: "spinning" as const,
+                selectedTeam: "",
+                sentences: [],
+                votes: [],
+              }
+              setGameState((prev) => ({ ...prev, ...newState }))
+              broadcastPhaseChange("spinning", newState)
             }
-          } else {
-            // Continue with next team for same question
-            setGameState(prev => ({
-              ...prev,
-              phase: 'spinning',
-              selectedTeam: '',
-              sentences: [],
-              votes: []
-            }))
-          }
-        }}
-      />
+          }}
+        />
+      </>
     )
   }
 
   // Game finished
-  if (gameState.phase === 'finished') {
+  if (gameState.phase === "finished") {
     const allVotes = gameState.votes
     return (
-      <GameResults
-        question="Game Complete!"
-        selectedTeam="All Teams"
-        sentence="Thank you for participating!"
-        votes={allVotes}
-        isGameFinished={true}
-        onContinue={() => {}}
-      />
+      <>
+        <ConnectionStatus />
+        <GameResults
+          question="Game Complete!"
+          selectedTeam="All Teams"
+          sentence="Thank you for participating!"
+          votes={allVotes}
+          isGameFinished={true}
+          onContinue={() => {}}
+        />
+      </>
     )
   }
+
+  return null
+}
